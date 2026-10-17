@@ -11,10 +11,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.yourname.mp3player.feature.home.HomeScreen
 import com.yourname.mp3player.feature.nowplaying.NowPlayingScreen
+import com.yourname.mp3player.feature.settings.SettingsScreen
 
 object Routes {
     const val LIBRARY = "library"
     const val PLAYER = "player"
+    const val SETTINGS = "settings"
 }
 
 @Composable
@@ -22,7 +24,13 @@ fun AppNav() {
     val nav = rememberNavController()
     NavHost(nav, startDestination = Routes.LIBRARY) {
         composable(Routes.LIBRARY) {
-            HomeScreen(onOpenPlayer = { nav.navigate(Routes.PLAYER) })
+            HomeScreen(
+                onOpenPlayer = { nav.navigate(Routes.PLAYER) },
+                onOpenSettings = { nav.navigate(Routes.SETTINGS) }
+            )
+        }
+        composable(Routes.SETTINGS) {
+            SettingsScreen(onBack = { nav.popBackStack() })
         }
         composable(
             Routes.PLAYER,

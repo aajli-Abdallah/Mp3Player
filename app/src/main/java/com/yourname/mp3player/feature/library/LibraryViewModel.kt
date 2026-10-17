@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.yourname.mp3player.domain.MusicRepository
 import com.yourname.mp3player.domain.PlayerController
+import com.yourname.mp3player.domain.RankedSong
 import com.yourname.mp3player.domain.Song
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -15,11 +17,17 @@ import kotlinx.coroutines.launch
 
 class LibraryViewModel(
     private val repo: MusicRepository,
-    private val player: PlayerController
+    private val player: PlayerController,
+    rankedSongs: StateFlow<List<RankedSong>>
 ) : ViewModel() {
 
     val library: StateFlow<List<Song>> = repo.getSongs()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** song id -> rank info, to show points in the list. */
+    val ranks: StateFlow<Map<Long, RankedSong>> = rankedSongs
+        .map { list -> list.associateBy { it.song.id } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     private val _query = MutableStateFlow("")
     val query = _query.asStateFlow()
@@ -48,4 +56,12 @@ class LibraryViewModel(
 
     fun onQueryChange(q: String) { _query.value = q }
     fun onSongClick(index: Int) = player.play(songs.value, index)
+
+    /** Plays the songs currently shown (respects the search) in random order, random first song. */
+    fun shufflePlay() {
+        val list = songs.value
+        if (list.isEmpty()) return
+        player.setShuffle(true)
+        player.play(list, kotlin.random.Random.nextInt(list.size))
+    }
 }

@@ -17,10 +17,13 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MusicOff
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -48,74 +51,111 @@ import com.yourname.mp3player.App
 import com.yourname.mp3player.core.ui.AlbumArt
 import com.yourname.mp3player.feature.player.formatTime
 import com.yourname.mp3player.feature.player.rememberPlayerViewModel
+import com.yourname.mp3player.feature.songmenu.SongMenuButton
+import com.yourname.mp3player.feature.songmenu.rememberSongActions
 
 @Composable
-fun LibraryScreen() {
+fun LibraryScreen(onOpenSettings: () -> Unit) {
     val app = LocalContext.current.applicationContext as App
     val vm: LibraryViewModel = viewModel(
         factory = viewModelFactory {
             initializer {
-                LibraryViewModel(app.container.musicRepository, app.container.playerController)
+                LibraryViewModel(
+                    app.container.musicRepository,
+                    app.container.playerController,
+                    app.container.rankedSongs
+                )
             }
         }
     )
     val playerVm = rememberPlayerViewModel()
+    val actions = rememberSongActions()
 
     val songs by vm.songs.collectAsState()
     val total by vm.library.collectAsState()
     val query by vm.query.collectAsState()
     val loading by vm.loading.collectAsState()
+    val ranks by vm.ranks.collectAsState()
     val playback by playerVm.state.collectAsState()
+    val favs by actions.favorites.collectAsState()
 
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize()) {
-            Header(count = total.size, onRefresh = vm::refresh)
-            SearchField(query, vm::onQueryChange)
-            Spacer(Modifier.height(8.dp))
+    Column(Modifier.fillMaxSize()) {
+        Header(count = total.size, onRefresh = vm::refresh, onSettings = onOpenSettings)
+        SearchField(query, vm::onQueryChange)
+        if (songs.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            Button(
+                onClick = vm::shufflePlay,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+            ) {
+                Icon(Icons.Default.Shuffle, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (query.isBlank()) "Shuffle play" else "Shuffle results")
+            }
+        }
+        Spacer(Modifier.height(8.dp))
 
-            when {
-                loading && total.isEmpty() -> Box(Modifier.fillMaxSize(), Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-                songs.isEmpty() -> EmptyState(searching = query.isNotBlank(), query = query, onRescan = vm::refresh)
-                else -> LazyColumn(Modifier.fillMaxSize()) {
-                    itemsIndexed(songs, key = { _, s -> s.id }) { index, song ->
-                        val isCurrent = playback.currentSong?.id == song.id
-                        val accent = if (isCurrent) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurface
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable { vm.onSongClick(index) }
-                                .padding(horizontal = 20.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            AlbumArt(song, Modifier.size(52.dp), cornerRadius = 12.dp)
-                            Spacer(Modifier.width(14.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    song.title, color = accent, maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium
-                                )
+        when {
+            loading && total.isEmpty() -> Box(Modifier.fillMaxSize(), Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            songs.isEmpty() -> EmptyState(searching = query.isNotBlank(), query = query, onRescan = vm::refresh)
+            else -> LazyColumn(Modifier.fillMaxSize()) {
+                itemsIndexed(songs, key = { _, s -> s.id }) { index, song ->
+                    val isCurrent = playback.currentSong?.id == song.id
+                    val accent = if (isCurrent) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { vm.onSongClick(index) }
+                            .padding(start = 20.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AlbumArt(song, Modifier.size(52.dp), cornerRadius = 12.dp)
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                song.title, color = accent, maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     song.artist, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f, fill = false)
                                 )
-                            }
-                            Spacer(Modifier.width(12.dp))
-                            if (isCurrent && playback.isPlaying) {
-                                Icon(Icons.Default.GraphicEq, null, tint = MaterialTheme.colorScheme.primary)
-                            } else {
-                                Text(
-                                    formatTime(song.durationMs),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                ranks[song.id]?.let { rk ->
+                                    Text(
+                                        "  ·  #${rk.rank} · ${rk.points} pts",
+                                        maxLines = 1,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                             }
                         }
+                        Spacer(Modifier.width(8.dp))
+                        if (song.id in favs) {
+                            Icon(
+                                Icons.Default.Favorite, "Favorite",
+                                Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary
+                            )
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        if (isCurrent && playback.isPlaying) {
+                            Icon(Icons.Default.GraphicEq, null, tint = MaterialTheme.colorScheme.primary)
+                        } else {
+                            Text(
+                                formatTime(song.durationMs),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        SongMenuButton(song, actions)
                     }
                 }
             }
@@ -124,7 +164,7 @@ fun LibraryScreen() {
 }
 
 @Composable
-private fun Header(count: Int, onRefresh: () -> Unit) {
+private fun Header(count: Int, onRefresh: () -> Unit, onSettings: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 16.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -146,6 +186,7 @@ private fun Header(count: Int, onRefresh: () -> Unit) {
             )
         }
         IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, "Rescan") }
+        IconButton(onClick = onSettings) { Icon(Icons.Default.Settings, "Settings") }
     }
 }
 

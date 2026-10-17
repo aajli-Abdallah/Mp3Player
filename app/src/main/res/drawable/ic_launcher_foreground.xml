@@ -1,11 +1,13 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <group>
-        <path android:pathData="M32,46L32,62" android:strokeColor="#D9FFFFFF" android:strokeWidth="7" android:strokeLineCap="round"/>
-        <path android:pathData="M43,38L43,70" android:strokeColor="#F2FFFFFF" android:strokeWidth="7" android:strokeLineCap="round"/>
-        <path android:pathData="M54,29L54,79" android:strokeColor="#FFFFFF" android:strokeWidth="7" android:strokeLineCap="round"/>
-        <path android:pathData="M65,40L65,68" android:strokeColor="#F2FFFFFF" android:strokeWidth="7" android:strokeLineCap="round"/>
-        <path android:pathData="M76,47L76,61" android:strokeColor="#D9FFFFFF" android:strokeWidth="7" android:strokeLineCap="round"/>
-    </group>
+    <!-- the two A's: two peaks of a sound wave -->
+    <path android:pathData="M33,74L43.5,36L54,74L64.5,36L75,74"
+        android:strokeColor="#FFFFFF" android:strokeWidth="6"
+        android:strokeLineCap="round" android:strokeLineJoin="round"/>
+    <!-- crossbars -->
+    <path android:pathData="M37.6,61L49.4,61"
+        android:strokeColor="#FFD6EA" android:strokeWidth="3.8" android:strokeLineCap="round"/>
+    <path android:pathData="M58.6,61L70.4,61"
+        android:strokeColor="#FFD6EA" android:strokeWidth="3.8" android:strokeLineCap="round"/>
 </vector>

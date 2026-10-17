@@ -6,6 +6,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import com.yourname.mp3player.domain.ThemeMode
 
 private val DarkColors = darkColorScheme(
     primary = Color(0xFFB69CFF), onPrimary = Color(0xFF21104F),
@@ -35,7 +36,21 @@ private val LightColors = lightColorScheme(
     outline = Color(0xFF7A7592)
 )
 
+private val AmoledColors = DarkColors.copy(
+    background = Color.Black,
+    surface = Color.Black,
+    surfaceContainer = Color(0xFF0A0812),
+    surfaceContainerHigh = Color(0xFF15111F),
+    surfaceContainerHighest = Color(0xFF1E1930)
+)
+
 @Composable
-fun AppTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (darkTheme) DarkColors else LightColors, content = content)
+fun AppTheme(mode: ThemeMode, content: @Composable () -> Unit) {
+    val scheme = when (mode) {
+        ThemeMode.SYSTEM -> if (isSystemInDarkTheme()) DarkColors else LightColors
+        ThemeMode.LIGHT -> LightColors
+        ThemeMode.DARK -> DarkColors
+        ThemeMode.AMOLED -> AmoledColors
+    }
+    MaterialTheme(colorScheme = scheme, content = content)
 }

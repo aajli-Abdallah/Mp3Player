@@ -1,5 +1,6 @@
 package com.yourname.mp3player.domain.usecase
 
+import com.yourname.mp3player.domain.ListenType
 import com.yourname.mp3player.domain.PlayerController
 import com.yourname.mp3player.domain.RankedSong
 import com.yourname.mp3player.domain.RankingRepository
@@ -14,6 +15,8 @@ object RankingRules {
     const val LISTEN_MIN_FRACTION = 0.5      // ... or half of the song if it is shorter
     const val POINTS_LISTEN = 1
     const val POINTS_REPEAT = 2
+    const val POINTS_COMPLETION = 2          // bonus when the song is finished
+    const val COMPLETE_MIN_FRACTION = 0.9    // must really have listened to 90% (no seek-to-end cheating)
 
     fun isListen(playedMs: Long, durationMs: Long): Boolean {
         val threshold = if (durationMs > 0)
@@ -21,6 +24,9 @@ object RankingRules {
         else LISTEN_MIN_MS
         return playedMs >= threshold
     }
+
+    fun isCompleted(playedMs: Long, durationMs: Long): Boolean =
+        durationMs > 0 && playedMs >= (durationMs * COMPLETE_MIN_FRACTION).toLong()
 
     fun pointsFor(isRepeat: Boolean) = if (isRepeat) POINTS_REPEAT else POINTS_LISTEN
 }
@@ -36,7 +42,7 @@ object Ranking {
                     .thenByDescending { it.second.lastPlayedAt }
                     .thenBy { it.first.title.lowercase() }
             )
-            .mapIndexed { i, (song, st) -> RankedSong(i + 1, song, st.points, st.listens) }
+            .mapIndexed { i, (song, st) -> RankedSong(i + 1, song, st.points, st.listens, st.completions) }
 }
 
 /** Listens to the player and turns listens into points. */
@@ -50,9 +56,15 @@ class RankingRecorder(
     init {
         scope.launch {
             player.events.collect { event ->
-                val isRepeat = event.song.id == lastSongId
-                lastSongId = event.song.id
-                repo.addPoints(event.song.id, RankingRules.pointsFor(isRepeat))
+                when (event.type) {
+                    ListenType.LISTEN -> {
+                        val isRepeat = event.song.id == lastSongId
+                        lastSongId = event.song.id
+                        repo.recordListen(event.song.id, RankingRules.pointsFor(isRepeat))
+                    }
+                    ListenType.COMPLETION ->
+                        repo.recordCompletion(event.song.id, RankingRules.POINTS_COMPLETION)
+                }
             }
         }
     }

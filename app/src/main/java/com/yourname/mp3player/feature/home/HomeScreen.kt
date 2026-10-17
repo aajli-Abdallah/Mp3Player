@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -23,15 +24,17 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import com.yourname.mp3player.feature.library.LibraryScreen
 import com.yourname.mp3player.feature.miniplayer.MiniPlayer
 import com.yourname.mp3player.feature.player.rememberPlayerViewModel
+import com.yourname.mp3player.feature.playlists.PlaylistsScreen
 import com.yourname.mp3player.feature.ranking.RankingScreen
 
 private enum class Tab(val label: String, val icon: ImageVector) {
     SONGS("Songs", Icons.Default.LibraryMusic),
+    PLAYLISTS("Playlists", Icons.Default.QueueMusic),
     RANKING("Ranking", Icons.Default.EmojiEvents)
 }
 
 @Composable
-fun HomeScreen(onOpenPlayer: () -> Unit) {
+fun HomeScreen(onOpenPlayer: () -> Unit, onOpenSettings: () -> Unit) {
     val playerVm = rememberPlayerViewModel()
     val playback by playerVm.state.collectAsState()
     var tab by rememberSaveable { mutableStateOf(Tab.SONGS) }
@@ -63,7 +66,8 @@ fun HomeScreen(onOpenPlayer: () -> Unit) {
     ) { padding ->
         Box(Modifier.padding(padding)) {
             when (tab) {
-                Tab.SONGS -> LibraryScreen()
+                Tab.SONGS -> LibraryScreen(onOpenSettings = onOpenSettings)
+                Tab.PLAYLISTS -> PlaylistsScreen()
                 Tab.RANKING -> RankingScreen()
             }
         }

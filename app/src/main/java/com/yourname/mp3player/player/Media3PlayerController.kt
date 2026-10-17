@@ -6,10 +6,12 @@ import android.net.Uri
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.yourname.mp3player.domain.ListenEvent
+import com.yourname.mp3player.domain.ListenType
 import com.yourname.mp3player.domain.PlaybackState
 import com.yourname.mp3player.domain.PlayerController
 import com.yourname.mp3player.domain.RepeatMode
@@ -45,10 +47,39 @@ class Media3PlayerController(private val context: Context) : PlayerController {
     // Listen tracking for the current "play instance" of a song
     private var playedMs = 0L
     private var listenCounted = false
+    private var completionSent = false
+    private var lastKnownDuration = 0L
 
     private fun resetListen() {
         playedMs = 0L
         listenCounted = false
+        completionSent = false
+        lastKnownDuration = 0L
+    }
+
+    /**
+     * The progress bar and the ranking rules must use the duration of the audio that is really
+     * playing, not the (sometimes wrong) value stored in MediaStore.
+     */
+    private fun syncDuration(c: MediaController) {
+        val real = c.duration
+        if (real <= 0L) return // C.TIME_UNSET is negative
+        _state.update { s ->
+            val song = s.currentSong
+            if (song != null && kotlin.math.abs(song.durationMs - real) > 1_000L)
+                s.copy(currentSong = song.copy(durationMs = real))
+            else s
+        }
+    }
+
+    /** Song reached its natural end: bonus, but only if it was really listened to. */
+    private fun emitCompletion(song: Song?) {
+        if (song == null || completionSent) return
+        val duration = if (song.durationMs > 0) song.durationMs else lastKnownDuration
+        if (RankingRules.isCompleted(playedMs, duration)) {
+            completionSent = true
+            _events.tryEmit(ListenEvent(song, ListenType.COMPLETION))
+        }
     }
 
     private val listener = object : Player.Listener {
@@ -58,8 +89,18 @@ class Media3PlayerController(private val context: Context) : PlayerController {
 
         // Also fires with reason REPEAT when repeat-one restarts the same song
         override fun onMediaItemTransition(item: MediaItem?, reason: Int) {
+            // Natural end (or a repeat-one loop) => the previous song was completed
+            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO ||
+                reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT
+            ) emitCompletion(_state.value.currentSong)
             resetListen()
             _state.update { it.copy(currentSong = resolve(item), positionMs = 0) }
+        }
+
+        // Last song of the queue finished (no next song => no transition event)
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            if (playbackState == Player.STATE_ENDED) emitCompletion(_state.value.currentSong)
+            if (playbackState == Player.STATE_READY) controller?.let { syncDuration(it) }
         }
 
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
@@ -91,6 +132,8 @@ class Media3PlayerController(private val context: Context) : PlayerController {
                 if (c != null && c.isPlaying) {
                     _state.update { it.copy(positionMs = c.currentPosition) }
                     playedMs += TICK_MS
+                    c.duration.takeIf { it > 0 }?.let { lastKnownDuration = it }
+                    syncDuration(c)
                     checkListen(c)
                 }
             }
@@ -153,9 +196,29 @@ class Media3PlayerController(private val context: Context) : PlayerController {
             it.copy(queue = songs, currentSong = songs.getOrNull(startIndex), positionMs = 0)
         }
         withController { c ->
+            // Always start at normal speed (other apps/controllers can change it through the media session)
+            c.setPlaybackParameters(PlaybackParameters.DEFAULT)
             c.setMediaItems(songs.map { it.toMediaItem() }, startIndex, 0L)
             c.prepare()
             c.play()
+        }
+    }
+
+    override fun playNext(song: Song) = withController { c ->
+        if (c.mediaItemCount == 0) {
+            play(listOf(song), 0)
+        } else {
+            queue = queue + song
+            c.addMediaItem(c.currentMediaItemIndex + 1, song.toMediaItem())
+        }
+    }
+
+    override fun addToQueue(song: Song) = withController { c ->
+        if (c.mediaItemCount == 0) {
+            play(listOf(song), 0)
+        } else {
+            queue = queue + song
+            c.addMediaItem(song.toMediaItem())
         }
     }
 

@@ -3,6 +3,8 @@ package com.yourname.mp3player.feature.player
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
+import com.yourname.mp3player.domain.RankedSong
+import kotlinx.coroutines.flow.StateFlow
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -10,7 +12,10 @@ import com.yourname.mp3player.App
 import com.yourname.mp3player.domain.PlayerController
 import com.yourname.mp3player.domain.RepeatMode
 
-class PlayerViewModel(private val player: PlayerController) : ViewModel() {
+class PlayerViewModel(
+    private val player: PlayerController,
+    val ranked: StateFlow<List<RankedSong>>
+) : ViewModel() {
     val state = player.state
 
     fun togglePlayPause() = player.togglePlayPause()
@@ -32,7 +37,7 @@ fun rememberPlayerViewModel(): PlayerViewModel {
     val app = LocalContext.current.applicationContext as App
     return viewModel(
         factory = viewModelFactory {
-            initializer { PlayerViewModel(app.container.playerController) }
+            initializer { PlayerViewModel(app.container.playerController, app.container.rankedSongs) }
         }
     )
 }
